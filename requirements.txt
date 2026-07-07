@@ -1,0 +1,7 @@
+pyTelegramBotAPI
+google-genai
+pymongo
+dnspython
+yfinance
+requests
+Flask
