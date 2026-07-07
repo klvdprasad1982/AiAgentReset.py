@@ -441,10 +441,15 @@ if __name__ == "__main__":
         global analysis_vault
         msg_key = call.data
         
+        # 💥 [CRITICAL FIX] బటన్ నొక్కగానే టెలిగ్రామ్ లో లోడింగ్ సింబల్ ఆగిపోవడానికి ముందే ఆన్సర్ పంపాలి సర్
+        try:
+            bot.answer_callback_query(call.id)
+        except Exception as cb_err:
+            print(f"Callback answer error: {cb_err}")
+            
         try:
             if msg_key in analysis_vault:
                 if msg_key.startswith("view_"):
-                    bot.answer_callback_query(call.id, text="🧠 విశ్లేషణ పార్ట్-1 లోడ్ చేస్తున్నాను సర్...")
                     vault_data = analysis_vault[msg_key]
                     
                     full_report = f"📊 <b>పూర్తి రీసెర్చ్ నివేదిక - Part 1</b>\n" \
@@ -460,14 +465,18 @@ if __name__ == "__main__":
                     back_btn = InlineKeyboardButton(text="⬅️ వెనక్కి వెళ్ళండి (Back to Alert)", callback_data=vault_data['back_key'])
                     markup.add(back_btn)
                     
-                    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=full_report, reply_markup=markup, parse_mode="HTML")
+                    # HTML ట్యాగ్ ఎర్రర్ల వల్ల ఫెయిల్ అవ్వకుండా ఉండటానికి try-except సెటప్ సర్
+                    try:
+                        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=full_report, reply_markup=markup, parse_mode="HTML")
+                    except Exception as html_err:
+                        # ఒకవేళ HTML ట్యాగ్స్ వల్ల ఎర్రర్ వస్తే నార్మల్ టెక్స్ట్ కింద పంపేస్తుంది
+                        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=full_report, reply_markup=markup, parse_mode=None)
 
                 elif msg_key.startswith("pt2_"):
                     view_key = analysis_vault[msg_key]
                     vault_data = analysis_vault[view_key]
-                    bot.answer_callback_query(call.id, text="🧠 విశ్లేషణ... పార్ట్-2 లోడ్ చేస్తున్నాను సర్...")
                     
-                    part2_report = f"📊 <b>పూర్తి రీసెర్చ్ నివేదిక - Part 2 (చివరి భాగం)</b>\n" \
+                    part2_report = f"📊 <b>పూర్తి రీసెర్చ్ నిвеదిక - Part 2 (చివరి భాగం)</b>\n" \
                                    f"🗞 <i>వార్త:</i> {vault_data['title']}\n" \
                                    f"--------------------------------------------------\n\n" \
                                    f"{vault_data['part2']}"
@@ -477,10 +486,12 @@ if __name__ == "__main__":
                     back_btn = InlineKeyboardButton(text="⬅️ వెనక్కి వెళ్ళండి (Back to Alert)", callback_data=vault_data['back_key'])
                     markup.add(first_part_btn, back_btn)
                     
-                    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=part2_report, reply_markup=markup, parse_mode="HTML")
+                    try:
+                        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=part2_report, reply_markup=markup, parse_mode="HTML")
+                    except:
+                        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=part2_report, reply_markup=markup, parse_mode=None)
 
                 elif msg_key.startswith("back_"):
-                    bot.answer_callback_query(call.id, text="⬅️ పాత అలర్ట్ కి తిరిగి వెళ్తున్నాము సర్...")
                     view_key = analysis_vault[msg_key]
                     vault_data = analysis_vault[view_key]
                     
@@ -488,12 +499,16 @@ if __name__ == "__main__":
                     view_btn = InlineKeyboardButton(text="🔎 పూర్తి విశ్లేషణ చదవండి (Read Full View)", callback_data=view_key)
                     original_markup.add(view_btn)
                     
-                    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=vault_data['original_text'], reply_markup=original_markup, parse_mode="HTML")
+                    try:
+                        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=vault_data['original_text'], reply_markup=original_markup, parse_mode="HTML")
+                    except:
+                        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=vault_data['original_text'], reply_markup=original_markup, parse_mode=None)
             else:
-                bot.answer_callback_query(call.id, text="❌ ఈ విశ్లేషణ పాతదవడం వల్ల మెమొరీ నుండి డిలీట్ అయింది సర్.")
+                # ఒకవేళ మెమొరీ లో డేటా లేకపోతే యూజర్ కి అలర్ట్ బాక్స్ చూపిస్తుంది సర్
+                bot.send_message(call.message.chat.id, "❌ <b>ఈ విశ్లేషణ పాతదవడం వల్ల లేదా సర్వర్ రీస్టార్ట్ అవ్వడం వల్ల మెమొరీ నుండి డిలీట్ అయింది సర్.</b>", parse_mode="HTML")
         except Exception as e:
-            report_error_to_telegram("Callback Listener", str(e))
-
+            report_error_to_telegram("Callback Listener Main", str(e))
+            
     # చాట్ ప్రశ్నల హ్యాండ్లర్
     @bot.message_handler(func=lambda message: True)
     def handle_user_research_query(message):
