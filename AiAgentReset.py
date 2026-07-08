@@ -190,8 +190,8 @@ def live_research_surveillance_worker():
     # 🚀 ఎకనామిక్ టైమ్స్ తో పాటు మనీకంట్రోల్ మ్యూచువల్ ఫండ్స్ ని గూగుల్ రూట్ ద్వారా కనెక్ట్ చేసాం సర్
     macro_feeds = [
         ("ET_Markets_Global", "https://economictimes.indiatimes.com/markets/rssfeeds/2146842.cms"),
-        # 🥭 మనీకంట్రోల్ లోని మ్యూచువల్ ఫండ్స్, ఎకానమీ నివేదికలను సురక్షితంగా లాగే గూగుల్ న్యూస్ ఫీడ్ సర్
-        ("Moneycontrol_MutualFunds_Via_Google", "https://news.google.com/rss/search?q=site:moneycontrol.com+%22mutual+funds%22+OR+economy&hl=en-IN&gl=IN&ceid=IN:en")
+        # 🚀 [FINANCIAL ARTICLES MASTER] మనీకంట్రోల్ లోని బెస్ట్ ఫైనాన్షియల్ ఆర్టికల్స్, ఇన్సైట్స్ మరియు స్పెషల్ నివేదికలన్నీ లాగే మాస్టర్ ఫీడ్ సర్
+        ("Moneycontrol_Insights_Via_Google", "https://news.google.com/rss/search?q=site:moneycontrol.com+intitle:(%22mutual+funds%22+OR+%22investment%22+OR+%22strategy%22+OR+%22market%22+OR+%22stocks%22+OR+%22finance%22+OR+%22outlook%22)&hl=en-IN&gl=IN&ceid=IN:en")
     ]
     
     while True:
