@@ -187,16 +187,24 @@ def live_research_surveillance_worker():
     global analysis_vault
     print("\n🕵️‍♂️ [START] Live Research Team నిరంతర నిఘా లూప్ ప్రారంభమైంది సర్...")
     
+    # 🚀 ఎకనామిక్ టైమ్స్ తో పాటు మనీకంట్రోల్ మ్యూచువల్ ఫండ్స్ ని గూగుల్ రూట్ ద్వారా కనెక్ట్ చేసాం సర్
     macro_feeds = [
         ("ET_Markets_Global", "https://economictimes.indiatimes.com/markets/rssfeeds/2146842.cms"),
-        ("Moneycontrol_Economy", "https://www.moneycontrol.com/rss/economy.xml"),
-        ("Investing_Analysis", "https://in.investing.com/rss/news_286.rss")
+        # 🥭 మనీకంట్రోల్ లోని మ్యూచువల్ ఫండ్స్, ఎకానమీ నివేదికలను సురక్షితంగా లాగే గూగుల్ న్యూస్ ఫీడ్ సర్
+        ("Moneycontrol_MutualFunds_Via_Google", "https://news.google.com/rss/search?q=site:moneycontrol.com+%22mutual+funds%22+OR+economy&hl=en-IN&gl=IN&ceid=IN:en")
     ]
     
     while True:
         try:
             collected_news = []
-            headers = {"User-Agent": "Mozilla/5.0"}
+            
+            # 🛠️ వెబ్‌సైట్లు మనల్ని బ్లాక్ చేయకుండా ఉండటానికి పవర్‌ఫుల్ బ్రౌజర్ హెడర్స్ సర్
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.5",
+                "Connection": "keep-alive"
+            }
             
             print(f"\n🔄 [{datetime.now().strftime('%H:%M:%S')}] RSS ఫీడ్స్ నుండి వార్తలను సేకరిస్తున్నాను...")
             for source_name, url in macro_feeds:
@@ -441,11 +449,9 @@ if __name__ == "__main__":
         global analysis_vault
         msg_key = call.data
         
-        # 💥 [CRITICAL FIX] బటన్ నొక్కగానే టెలిగ్రామ్ లో లోడింగ్ సింబల్ ఆగిపోవడానికి ముందే ఆన్సర్ పంపాలి సర్
         try:
             bot.answer_callback_query(call.id)
-        except Exception as cb_err:
-            print(f"Callback answer error: {cb_err}")
+        except: pass
             
         try:
             if msg_key in analysis_vault:
@@ -465,18 +471,25 @@ if __name__ == "__main__":
                     back_btn = InlineKeyboardButton(text="⬅️ వెనక్కి వెళ్ళండి (Back to Alert)", callback_data=vault_data['back_key'])
                     markup.add(back_btn)
                     
-                    # HTML ట్యాగ్ ఎర్రర్ల వల్ల ఫెయిల్ అవ్వకుండా ఉండటానికి try-except సెటప్ సర్
+                    # 💥 [MESSAGE_TOO_LONG FIX] ఒకవేళ పార్ట్-1 టెలిగ్రామ్ లిమిట్ దాటితే ఎడిట్ చేయకుండా కొత్త మెసేజ్ కింద పంపుతుంది సర్
                     try:
-                        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=full_report, reply_markup=markup, parse_mode="HTML")
-                    except Exception as html_err:
-                        # ఒకవేళ HTML ట్యాగ్స్ వల్ల ఎర్రర్ వస్తే నార్మల్ టెక్స్ట్ కింద పంపేస్తుంది
-                        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=full_report, reply_markup=markup, parse_mode=None)
+                        if len(full_report) <= 4000:
+                            bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=full_report, reply_markup=markup, parse_mode="HTML")
+                        else:
+                            # పాత మెసేజ్ డిలీట్ చేసి కొత్తగా ముక్కలుగా పంపుతుంది
+                            bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
+                            send_split_message(call.message.chat.id, full_report)
+                            # కింద కంట్రోల్ బటన్స్ విడిగా పంపుతుంది
+                            bot.send_message(call.message.chat.id, "<b>కంట్రోల్ ఆప్షన్స్:</b>", reply_markup=markup, parse_mode="HTML")
+                    except:
+                        try: bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=full_report, reply_markup=markup, parse_mode=None)
+                        except: pass
 
                 elif msg_key.startswith("pt2_"):
                     view_key = analysis_vault[msg_key]
                     vault_data = analysis_vault[view_key]
                     
-                    part2_report = f"📊 <b>పూర్తి రీసెర్చ్ నిвеదిక - Part 2 (చివరి భాగం)</b>\n" \
+                    part2_report = f"📊 <b>పూర్తి రీసెర్చ్ నివేదిక - Part 2 (చివరి భాగం)</b>\n" \
                                    f"🗞 <i>వార్త:</i> {vault_data['title']}\n" \
                                    f"--------------------------------------------------\n\n" \
                                    f"{vault_data['part2']}"
@@ -487,9 +500,15 @@ if __name__ == "__main__":
                     markup.add(first_part_btn, back_btn)
                     
                     try:
-                        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=part2_report, reply_markup=markup, parse_mode="HTML")
+                        if len(part2_report) <= 4000:
+                            bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=part2_report, reply_markup=markup, parse_mode="HTML")
+                        else:
+                            bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
+                            send_split_message(call.message.chat.id, part2_report)
+                            bot.send_message(call.message.chat.id, "<b>కంట్రోల్ ఆప్షన్స్:</b>", reply_markup=markup, parse_mode="HTML")
                     except:
-                        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=part2_report, reply_markup=markup, parse_mode=None)
+                        try: bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=part2_report, reply_markup=markup, parse_mode=None)
+                        except: pass
 
                 elif msg_key.startswith("back_"):
                     view_key = analysis_vault[msg_key]
@@ -502,12 +521,12 @@ if __name__ == "__main__":
                     try:
                         bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=vault_data['original_text'], reply_markup=original_markup, parse_mode="HTML")
                     except:
-                        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=vault_data['original_text'], reply_markup=original_markup, parse_mode=None)
+                        try: bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=vault_data['original_text'], reply_markup=original_markup, parse_mode=None)
+                        except: pass
             else:
-                # ఒకవేళ మెమొరీ లో డేటా లేకపోతే యూజర్ కి అలర్ట్ బాక్స్ చూపిస్తుంది సర్
-                bot.send_message(call.message.chat.id, "❌ <b>ఈ విశ్లేషణ పాతదవడం వల్ల లేదా సర్వర్ రీస్టార్ట్ అవ్వడం వల్ల మెమొరీ నుండి డిలీట్ అయింది సర్.</b>", parse_mode="HTML")
+                bot.send_message(call.message.chat.id, "❌ <b>ఈ విశ్లేషణ పాతదవడం వల్ల మెమొరీ నుండి డిలీట్ అయింది సర్.</b>", parse_mode="HTML")
         except Exception as e:
-            report_error_to_telegram("Callback Listener Main", str(e))
+            report_error_to_telegram("Callback Listener Main Fix", str(e))
             
     # చాట్ ప్రశ్నల హ్యాండ్లర్
     @bot.message_handler(func=lambda message: True)
@@ -539,13 +558,25 @@ if __name__ == "__main__":
         except Exception as data_err:
             print(f"Error fetching live data for chat: {data_err}")
 
-        # 🌍 కమాండ్ 1: మార్కెట్ అప్‌డేట్స్
+        # 🌍 కమాండ్ 1: మార్కెట్ అప్‌డేట్స్ (బగ్ ఫిక్స్ వెర్షన్)
         if "market updates" in user_query or "market visheshalu" in user_query:
             bot.reply_to(message, f"🌍 సర్, మన మాస్టర్ మైండ్ AI మార్కెట్ & సర్వైలెన్స్ డేటాను విశ్లేషిస్తోంది. ఒక్క నిమిషం సర్...")
             
+            # 📊 [FIX 1] మొదట లైవ్ మార్కెట్ నెంబర్ల డేటాను ఇక్కడికి రప్పించాలి సర్!
+            actual_live_numbers = get_live_market_data()
+            
+            # 📊 [FIX 2] ఒకవేళ ప్రొవిజనల్ FII/DII డేటా కూడా అందుబాటులో ఉంటే తెచ్చుకోవాలి
+            fii_dii_summary = get_fii_dii_data()
+            
             market_prompt = f"""You are a World-Class Chief Investment Officer, Veteran Professional Trader, and Factual Financial Journalist. Today is {time.strftime('%Y-%m-%d')}.
 
-Analyze this 100% REAL LIVE MARKET DATA and NEWS SUMMARY captured right now:
+CRITICAL: HERE IS THE RAW FACTUAL LIVE DATA AND INDEX LEVELS TO USE:
+\"\"\"
+{actual_live_numbers}
+{fii_dii_summary}
+\"\"\"
+
+Analyze this supplementary NEWS SUMMARY captured right now:
 \"\"\"
 {live_data_summary}
 \"\"\"
@@ -660,6 +691,9 @@ Analyze the live market setup and historical corporate data repository:
 CRITICAL REQUISITE FROM THE USER (ACT AS AN INSTITUTIONAL MASTER MIND):
 The user demands a 100% rigorous, comprehensive, fact-based investment evaluation. Since you are billion times more powerful with data processing, you must provide a RAZOR-SHARP INSTITUTIONAL EVALUATION (పదునైన లోతైన విశ్లేషణ) for each stock. Explain the deeply buried market mechanics, structural advantages, and precise triggers that separate these 2 stocks from ordinary market names. Do NOT write generic text. 
 
+💥 SYSTEM EMERGENCY RULE: 
+If there are NO highly robust, fundamentally strong, top-tier quality stocks available in the market context today based on facts, do NOT force or create a fake report. Instead, strictly output ONLY this exact sentence in Telugu and nothing else: 'సర్, ఈరోజు అంతటి బలమైన, తిరుగులేని వృద్ధి గల స్టాక్ ఏదీ రీసెర్చ్ టీమ్‌కు దొరకలేదు సర్'.
+
 STRICT TELEGRAM FORMATTING:
 - Leave TWO blank lines (Double Enter) between Stock 1 and Stock 2 (BIG GAP).
 - Leave ONE blank line (Single Enter) between sub-parameters (SMALL GAP).
@@ -730,8 +764,6 @@ TASK: Select exactly 2 high-quality distinct Indian stocks based on today's real
   - భవిష్యత్ ఆర్డర్లు/గ్రోత్ ట్రిగ్గర్స్: [Government policies, capex, or new order book catalysts]
 
 • **(E) టెక్నికల్స్ & ఎంట్రీ/ఎగ్జిట్ ప్లాన్:** [Breakout charts structure, major supports and resistance analysis]
-
-⚠️ గమనిక: ఒకవేళ మార్కెట్లో అంతటి పటిష్టమైన క్వాలిటీ స్టాక్స్ ఏవీ లభించకపోతే, సూటిగా 'సర్, ఈరోజు అంతటి బలమైన, తిరుగులేని వృద్ధి గల స్టాక్ ఏదీ రీసెర్చ్ టీమ్‌కు దొరకలేదు సర్' అని మాత్రమే రాయ్.
 
 Begin your high-end institutional research report now:"""
             
