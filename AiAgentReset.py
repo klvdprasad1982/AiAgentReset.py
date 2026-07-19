@@ -331,6 +331,8 @@ CRITICAL RULES FOR GOOGLE SEARCH & ACCURACY:
                         print(f"API Error: {err_str}")
                         report_error_to_telegram(f"Live Research Loop (API Failure)", f"News: {safe_title}\nErr: {err_str}")
                     
+                    # ⏳ AI హిట్ అయి ఎర్రర్ వచ్చింది కాబట్టి, నెక్స్ట్ వార్తకు వెళ్లే ముందు 30 సెకన్ల కూలింగ్ పీరియడ్
+                    print(f"⏳ API ఎర్రర్ వచ్చింది. రేట్ లిమిట్ రికవరీ కోసం 30 సెకన్లు ఆగుతున్నాను సర్...")
                     time.sleep(30)
                     continue
                 
@@ -346,6 +348,10 @@ CRITICAL RULES FOR GOOGLE SEARCH & ACCURACY:
                                 "timestamp": datetime.now()
                             })
                         except: pass
+
+                    # ⏳ AI టైమ్ ఉపయోగించుకుంది కాబట్టి, ఇక్కడ కూడా 30 సెకన్ల గ్యాప్ తప్పనిసరి
+                    print(f"⏳ తదుపరి వార్త కోసం 30 సెకన్ల సేఫ్ గ్యాప్ తీసుకుంటున్నాను సర్...")
+                    time.sleep(30)
                     continue
 
                 if "[DEEP_ANALYSIS]" in agent_output:
@@ -366,27 +372,29 @@ CRITICAL RULES FOR GOOGLE SEARCH & ACCURACY:
                     one_line_part = parts[0].replace("[ONE_LINE]", "").replace("HIGH_IMPACT", "").strip()
                     deep_analysis_part = parts[1].strip()
                     
-                    raw_part1 = deep_analysis_part
-                    raw_part2 = ""
+                    # 🧼 [CLEANING LOGIC] పిచ్చి గుర్తులను క్లీన్ చేస్తున్నాం సర్
+                    deep_analysis_part = re.sub(r'<b>\s*\.\.\.\s*\(ఇంకా ఉంది సర్.*?\)\s*\.\.\.\s*</b>', '', deep_analysis_part)
+                    deep_analysis_part = re.sub(r'<b>\s*\.\.\.\s*\(మునుపటి భాగం కొనసాగింపు.*?\)\s*\.\.\.\s*</b>', '', deep_analysis_part)
+                    deep_analysis_part = deep_analysis_part.replace("><", "")
                     
-                    if len(deep_analysis_part) > 3000:
-                        raw_part1 = deep_analysis_part[:3000]
-                        raw_part2 = deep_analysis_part[3000:]
-
+                    # 🛠️ [UPDATED SMART SPACING - PERFECT FIX] సార్, ఇక్కడ పాత 2 లైన్లను తీసి ఈ 3 లైన్లు పెట్టాను సర్
+                    # ఇది 1. లేదా 1) లేదా **1. లేదా బుల్లెట్ పాయింట్స్ (*) ఎలా ఉన్నా సరే వాటి మధ్య నీట్ గా గ్యాప్ ఇస్తుంది
+                    deep_analysis_part = re.sub(r'(\n\s*\d+[\.\)]\s*)', r'\n\n\1', deep_analysis_part)
+                    deep_analysis_part = re.sub(r'(\n\s*\*+\s*)', r'\n\n\1', deep_analysis_part)
+                    deep_analysis_part = re.sub(r'\n{3,}', '\n\n', deep_analysis_part)
+                    
                     safe_title = clean_for_html(raw_title)
                     safe_source = clean_for_html(source)
                     safe_one_line = clean_for_html(one_line_part)
                     
-                    part1_text = clean_for_html(raw_part1)
-                    part2_text = ""
+                    # 🎯 [DYNAMIC SPLIT LOGIC] 3500 అక్షరాల చొప్పున ఎన్ని ముక్కలైనా కట్ చేస్తుంది సర్
+                    def split_analysis(text, size=3500):
+                        return [text[i:i+size] for i in range(0, len(text), size)]
                     
-                    if raw_part2:
-                        part1_text += "\n\n<b>...(ఇంకా ఉంది సర్, కింద ఉన్న 'Next Part' బటన్ నొక్కండి)...</b>"
-                        part2_text = "<b>...(మునుపటి భాగం కొనసాగింపు)...</b>\n\n" + clean_for_html(raw_part2)
+                    report_parts = split_analysis(deep_analysis_part.strip())
                     
                     unique_id = int(time.time() * 1000)
                     msg_id = f"view_{unique_id}"
-                    part2_id = f"pt2_{unique_id}"
                     back_id = f"back_{unique_id}"
                     
                     short_telegram_msg = f"📢 <b>రీసెర్ך టీమ్ లైవ్ అలర్ట్</b>\n\n" \
@@ -394,28 +402,32 @@ CRITICAL RULES FOR GOOGLE SEARCH & ACCURACY:
                                          f"🌐 <b>మూలం:</b> {safe_source}\n" \
                                          f"💡 <b>క్విక్ వ్యూ:</b> {safe_one_line}"
 
+                    # 📦 [NEW VAULT STRUCTURE] మీ ప్లాన్ ప్రకారం డైనమిక్ పార్ట్స్ సేవింగ్ సర్
                     analysis_vault[msg_id] = {
                         "title": safe_title,
                         "source": safe_source,
-                        "part1": part1_text,
-                        "part2": part2_text,
+                        "parts": report_parts,
                         "original_text": short_telegram_msg,
-                        "part2_key": part2_id,
                         "back_key": back_id
                     }
-                    analysis_vault[part2_id] = msg_id
+
                     analysis_vault[back_id] = msg_id
-                    
+
                     markup = InlineKeyboardMarkup()
-                    view_btn = InlineKeyboardButton(text="🔎 పూర్తి విశ్లేషణ చదవండి (Read Full View)", callback_data=msg_id)
+                    view_btn = InlineKeyboardButton(text="🔎 పూర్తి విశ్లేషణ చదవండి (Read Full View)", callback_data=f"page_{unique_id}_0")
                     markup.add(view_btn)
                                                                                                       
                     bot.send_message(YOUR_TELEGRAM_CHAT_ID, short_telegram_msg, reply_markup=markup, parse_mode="HTML")
                     print(f"📤 [TELEGRAM SENT] టెలిగ్రామ్‌కు అలర్ట్ విజయవంతంగా పంపబడింది సర్.")
-                    time.sleep(2)
+
+                    # ⏳ 🎯 [PERFECT PLACE] టెలిగ్రామ్‌కు సక్సెస్ ఫుల్ గా పంపిన తర్వాత, నెక్స్ట్ లూప్ లోకి వెళ్లే ముందు 30 సెకన్లు ఆపుతున్నాం
+                    print(f"⏳ AI కాల్ విజయవంతమైంది. తదుపరి వార్త కోసం 30 సెకన్ల సేఫ్ గ్యాప్ ఇస్తున్నాను సర్...")
+                    time.sleep(30)
                     
                 else:
                     print(f"⚠️ [FORMAT MISMATCH] జెమిని నుండి రెస్పాన్స్ వచ్చింది కానీ సరైన టాగ్స్ లేవు.")
+                    # టాగ్స్ లేకపోయినా AI హిట్ జరిగింది కాబట్టి సేఫ్ సైడ్ 30 సెకన్లు ఆపాలి
+                    time.sleep(30)
                     
             print(f"\n📡📡 నిరంతర నిఘా లూప్ ముగిసింది. మళ్లీ 5 నిమిషాల తర్వాత చెక్ చేస్తుంది సర్...")
             
@@ -424,6 +436,7 @@ CRITICAL RULES FOR GOOGLE SEARCH & ACCURACY:
             report_error_to_telegram("Live Research Main Loop", str(e))
             
         time.sleep(300)
+
 
 # =====================================================================
 # 🚀 మాస్టర్ కమాండ్ సెంటర్
@@ -471,68 +484,67 @@ if __name__ == "__main__":
         except: pass
             
         try:
-            if msg_key in analysis_vault:
-                if msg_key.startswith("view_"):
-                    vault_data = analysis_vault[msg_key]
+            # 📄 [DYNAMIC PAGINATION LOGIC] page_ బటన్ క్లిక్ చేసినప్పుడు
+            if msg_key.startswith("page_"):
+                # ఫార్మాట్: page_17123456789_0 (అంటే page_ID_PageIndex)
+                parts_key = msg_key.split("_")
+                unique_id = parts_key[1]
+                current_page = int(parts_key[2])
+                
+                vault_id = f"view_{unique_id}"
+                
+                if vault_id in analysis_vault:
+                    vault_data = analysis_vault[vault_id]
+                    report_parts = vault_data["parts"]
+                    total_pages = len(report_parts)
                     
-                    full_report = f"📊 <b>పూర్తి రీసెర్చ్ నివేదిక - Part 1</b>\n" \
-                                  f"🗞 <i>వార్త:</i> {vault_data['title']}\n" \
-                                  f"🌐 <i>మూలం:</i> {vault_data['source']}\n" \
+                    # కరెంట్ పేజీ టెక్స్ట్ తీసుకొని హెడర్ అమరుస్తాం సర్
+                    page_content = report_parts[current_page]
+                    
+                    full_report = f"📊 <b>పూర్తి రీసెర్చ్ నిвеదిక (Page {current_page + 1}/{total_pages})</b>\n\n" \
+                                  f"🗞 <b>వార్త:</b> {vault_data['title']}\n" \
+                                  f"🌐 <b>మూలం:</b> {vault_data['source']}\n" \
                                   f"--------------------------------------------------\n\n" \
-                                  f"{vault_data['part1']}"
+                                  f"{page_content.strip()}"
                     
+                    # 🕹️ బటన్స్ మేనేజ్మెంట్ లాజిక్ సర్
                     markup = InlineKeyboardMarkup()
-                    if vault_data['part2'] != "":
-                        next_btn = InlineKeyboardButton(text="➡️ మిగిలిన భాగం (Next Part)", callback_data=vault_data['part2_key'])
-                        markup.add(next_btn)
-                    back_btn = InlineKeyboardButton(text="⬅️ వెనక్కి వెళ్ళండి (Back to Alert)", callback_data=vault_data['back_key'])
+                    row_btns = []
+                    
+                    # ⬅️ ఒకవేళ మొదటి పేజీ కాకపోతే Previous బటన్ చూపిస్తుంది
+                    if current_page > 0:
+                        prev_btn = InlineKeyboardButton(text="⬅️ Previous", callback_data=f"page_{unique_id}_{current_page - 1}")
+                        row_btns.append(prev_btn)
+                        
+                    # ➡️ ఒకవేళ చివరి పేజీ కాకపోతే Next బటన్ చూపిస్తుంది
+                    if current_page < total_pages - 1:
+                        next_btn = InlineKeyboardButton(text="➡️ Next", callback_data=f"page_{unique_id}_{current_page + 1}")
+                        row_btns.append(next_btn)
+                    
+                    if row_btns:
+                        markup.row(*row_btns)
+                        
+                    # 🏠 ఎల్లప్పుడూ కింద ఉండే వెనక్కి వెళ్ళే హోమ్ బటన్ సర్
+                    back_btn = InlineKeyboardButton(text="🏠 Back to Alert", callback_data=vault_data['back_key'])
                     markup.add(back_btn)
                     
-                    # 💥 [MESSAGE_TOO_LONG FIX] ఒకవేళ పార్ట్-1 టెలిగ్రామ్ లిమిట్ దాటితే ఎడిట్ చేయకుండా కొత్త మెసేజ్ కింద పంపుతుంది సర్
                     try:
-                        if len(full_report) <= 4000:
-                            bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=full_report, reply_markup=markup, parse_mode="HTML")
-                        else:
-                            # పాత మెసేజ్ డిలీట్ చేసి కొత్తగా ముక్కలుగా పంపుతుంది
-                            bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
-                            send_split_message(call.message.chat.id, full_report)
-                            # కింద కంట్రోల్ బటన్స్ విడిగా పంపుతుంది
-                            bot.send_message(call.message.chat.id, "<b>కంట్రోల్ ఆప్షన్స్:</b>", reply_markup=markup, parse_mode="HTML")
+                        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=full_report, reply_markup=markup, parse_mode="HTML")
                     except:
-                        try: bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=full_report, reply_markup=markup, parse_mode=None)
-                        except: pass
+                        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=full_report, reply_markup=markup, parse_mode=None)
+                else:
+                    bot.send_message(call.message.chat.id, "❌ <b>ఈ విశ్లేషణ మెమొరీ నుండి డిలీట్ అయింది సర్.</b>", parse_mode="HTML")
 
-                elif msg_key.startswith("pt2_"):
-                    view_key = analysis_vault[msg_key]
+            # ⬅️ '🏠 Back to Alert' బటన్ నొక్కినప్పుడు
+            elif msg_key.startswith("back_"):
+                view_key = analysis_vault[msg_key]
+                if view_key in analysis_vault:
                     vault_data = analysis_vault[view_key]
                     
-                    part2_report = f"📊 <b>పూర్తి రీసెర్చ్ నివేదిక - Part 2 (చివరి భాగం)</b>\n" \
-                                   f"🗞 <i>వార్త:</i> {vault_data['title']}\n" \
-                                   f"--------------------------------------------------\n\n" \
-                                   f"{vault_data['part2']}"
-                    
-                    markup = InlineKeyboardMarkup()
-                    first_part_btn = InlineKeyboardButton(text="⬅️ మొదటి భాగం చదవండి (Part 1)", callback_data=view_key)
-                    back_btn = InlineKeyboardButton(text="⬅️ వెనక్కి వెళ్ళండి (Back to Alert)", callback_data=vault_data['back_key'])
-                    markup.add(first_part_btn, back_btn)
-                    
-                    try:
-                        if len(part2_report) <= 4000:
-                            bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=part2_report, reply_markup=markup, parse_mode="HTML")
-                        else:
-                            bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
-                            send_split_message(call.message.chat.id, part2_report)
-                            bot.send_message(call.message.chat.id, "<b>కంట్రోల్ ఆప్షన్స్:</b>", reply_markup=markup, parse_mode="HTML")
-                    except:
-                        try: bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=part2_report, reply_markup=markup, parse_mode=None)
-                        except: pass
-
-                elif msg_key.startswith("back_"):
-                    view_key = analysis_vault[msg_key]
-                    vault_data = analysis_vault[view_key]
-                    
+                    # మళ్లీ మొదటి చిన్న బటన్ ని సెట్ చేస్తాం సర్
+                    parts_key = view_key.split("_")[1]
                     original_markup = InlineKeyboardMarkup()
-                    view_btn = InlineKeyboardButton(text="🔎 పూర్తి విశ్లేషణ చదవండి (Read Full View)", callback_data=view_key)
+                    view_btn = InlineKeyboardButton(text="🔎 పూర్తి విశ్లేషణ చదవండి (Read Full View)", callback_data=f"page_{parts_key}_0")
                     original_markup.add(view_btn)
                     
                     try:
@@ -540,10 +552,11 @@ if __name__ == "__main__":
                     except:
                         try: bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=vault_data['original_text'], reply_markup=original_markup, parse_mode=None)
                         except: pass
-            else:
-                bot.send_message(call.message.chat.id, "❌ <b>ఈ విశ్లేషణ పాతదవడం వల్ల మెమొరీ నుండి డిలీట్ అయింది సర్.</b>", parse_mode="HTML")
+                else:
+                    bot.send_message(call.message.chat.id, "❌ <b>డేటా లభించలేదు సర్.</b>", parse_mode="HTML")
+            
         except Exception as e:
-            report_error_to_telegram("Callback Listener Main Fix", str(e))
+            report_error_to_telegram("Callback Listener Dynamic Pagination Fix", str(e))
             
     # చాట్ ప్రశ్నల హ్యాండ్లర్
     @bot.message_handler(func=lambda message: True)
