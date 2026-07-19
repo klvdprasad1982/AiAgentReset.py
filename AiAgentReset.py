@@ -239,12 +239,16 @@ def live_research_surveillance_worker():
                 print(f"\n📰 [ప్రాసెస్ అవుతోంది] శీర్షిక: {raw_title[:60]}... ({source})")
                 current_clean_content = clean_main_content(news_text)
                 
-                # 🥭 [MongoDB Check] ఈ వార్త డేటాబేస్ లో ముందే ఉందో లేదో వెతుకుతుంది సర్
+                # 🎯 ఇక్కడ మార్చాము సార్: లింక్ లేదా టైటిల్ డేటాబేస్ లో ఉందేమో ముందే వెతుకుతుంది
                 is_duplicate = False
                 if news_collection is not None:
                     try:
-                        # ఎగ్జాక్ట్ మ్యాచ్ కోసం వెతుకుతుంది
-                        existing = news_collection.find_one({"clean_content": current_clean_content})
+                        existing = news_collection.find_one({
+                            "$or": [
+                                {"clean_content": current_clean_content},
+                                {"title": raw_title.strip()}
+                            ]
+                        })
                         if existing:
                             is_duplicate = True
                     except Exception as db_err:
@@ -254,6 +258,19 @@ def live_research_surveillance_worker():
                     print(f"⏩ [SKIP] ఈ వార్త ఇప్పటికే MongoDB లో ఉంది (Duplicate). వదిలేస్తున్నాను సర్.")
                     continue
                 
+                # 🎯 మోస్ట్ ఇంపార్టెంట్ ఫిక్స్: జెమిని API 429 రేట్ లిమిట్ ఇచ్చినా మళ్లీ ఈ వార్త రిపీట్ అవ్వకుండా ముందే మోంగోడిబి లో లాక్ చేస్తున్నాం సర్!
+                if news_collection is not None:
+                    try:
+                        news_collection.insert_one({
+                            "clean_content": current_clean_content,
+                            "title": raw_title.strip(),
+                            "status": "LOCKED_IN_ADVANCE",
+                            "timestamp": datetime.now()
+                        })
+                        print(f"🔒 [DATABASE LOCKED] జెమిని కంటే ముందే వార్తను డేటాబేస్ లో సేవ్ చేసి లాక్ చేసాను సర్.")
+                    except Exception as lock_err:
+                        print(f"⚠️ ముందే లాక్ చేయడంలో చిన్న లోపం: {lock_err}")
+
                 print(f"⏳ రేట్ లిమిట్ రాకుండా ఉండటానికి 30 సెకన్లు ఆగుతున్నాను సర్...")
                 time.sleep(30)
                 
